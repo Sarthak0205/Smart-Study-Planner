@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Smart Study Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* ✅ Only apply to animated elements */
+        .fade-in {
+            will-change: opacity, transform;
+        }
+
+        /* Optional: smooth cards only */
+        .card {
+            will-change: transform;
+        }
+
+        /* Smooth UI */
+        .card {
+            transition: all 0.25s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Animation */
+        .fade-in {
+            animation: fadeIn 0.2s ease-out;
+            will-change: opacity, transform;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ✅ Prevent text clipping globally */
+        * {
+            box-sizing: border-box;
+        }
+
+        /* ✅ Fix text overflow issues */
+        p,
+        h1,
+        h2,
+        h3,
+        span {
+            word-break: break-word;
+        }
+
+        /* ✅ Fix metric text clipping */
+        #indexUsed,
+        #sortUsed {
+            white-space: normal;
+            overflow: visible;
+        }
+
+        /* ✅ Prevent grid/flex overflow bugs */
+        .min-w-fix {
+            min-width: 0;
+        }
+
+        #modeLabel {
+            min-height: 28px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+
+    <div class="flex min-h-screen">
+
+        <!-- 🔹 SIDEBAR -->
+        <div class="w-64 bg-white shadow p-5">
+            <h1 class="text-xl font-bold mb-6">Planner</h1>
+
+            <ul class="space-y-3">
+                <li onclick="showSection(event, 'dashboardSection')" class="cursor-pointer text-blue-500">Dashboard</li>
+                <li onclick="showSection(event, 'topicsSection')" class="cursor-pointer">Topics</li>
+                <li onclick="showSection(event, 'scheduleSection')" class="cursor-pointer">Schedule</li>
+                <li onclick="showSection(event, 'dbSection')" class="cursor-pointer">DB Analysis</li>
+            </ul>
+        </div>
+
+        <!-- 🔹 MAIN -->
+        <div class="flex-1 p-6 overflow-y-auto">
+
+            <!-- ================= DASHBOARD ================= -->
+            <div id="dashboardSection">
+
+                <div class="grid grid-cols-3 gap-4 mb-6">
+
+                    <div class="bg-white p-5 rounded shadow">
+                        <p class="text-gray-500">Today's Hours</p>
+                        <p id="todayHours" class="text-2xl font-bold">0</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded shadow">
+                        <p class="text-gray-500">Topics</p>
+                        <p id="topicCount" class="text-2xl font-bold">0</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded shadow">
+                        <p class="text-gray-500">Status</p>
+                        <p class="text-green-500 font-bold">Active</p>
+                    </div>
+
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+
+                    <!-- ADD TOPIC -->
+                    <div class="bg-white p-5 rounded shadow">
+                        <h3 class="font-semibold mb-3">Add Topic</h3>
+
+                        <input id="name" placeholder="Topic Name" class="w-full border p-2 mb-2 rounded" />
+                        <input id="difficulty" type="number" placeholder="Difficulty (0-5)"
+                            class="w-full border p-2 mb-2 rounded" />
+                        <input id="hours" type="number" placeholder="Estimated Hours"
+                            class="w-full border p-2 mb-2 rounded" />
+                        <input id="deadline" type="date" class="w-full border p-2 mb-2 rounded" />
+
+                        <button onclick="addTopic()" class="bg-blue-500 text-white w-full py-2 rounded">
+                            Add Topic
+                        </button>
+                    </div>
+
+                    <!-- GENERATE -->
+                    <div class="bg-white p-5 rounded shadow">
+                        <h3 class="font-semibold mb-3">Generate Schedule</h3>
+
+                        <input id="dailyHours" type="number" placeholder="Daily Hours"
+                            class="w-full border p-2 mb-3 rounded" />
+
+                        <button onclick="generateSchedule()" class="bg-green-500 text-white w-full py-2 rounded">
+                            Generate
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ================= TOPICS ================= -->
+            <div id="topicsSection" class="hidden">
+                <h2 class="text-xl font-semibold mb-4">Topics</h2>
+                <div id="topicsContainer" class="grid grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- ================= SCHEDULE ================= -->
+            <div id="scheduleSection" class="hidden">
+                <h2 class="text-xl font-semibold mb-4">Schedule</h2>
+
+                <div class="bg-white p-5 rounded shadow mb-6">
+                    <h3 class="font-semibold mb-2">Today's Plan</h3>
+                    <div id="todayPlan"></div>
+                </div>
+
+                <table class="w-full bg-white rounded shadow">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="p-2">Date</th>
+                            <th>Topic</th>
+                            <th>Hours</th>
+                            <th>Priority</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleTable"></tbody>
+                </table>
+            </div>
+
+            <!-- ================= DB ANALYSIS ================= -->
+            <!-- ================= DB ANALYSIS ================= -->
+            <div id="dbSection" class="hidden p-6">
+
+                <div class="max-w-6xl mx-auto">
+
+                    <h1 class="text-2xl font-bold mb-2">Database Performance Analysis</h1>
+
+                    <p class="text-gray-500 text-sm mb-2">
+                        Concepts: Indexing • Query Optimization • Execution Plans • Cost-Based Optimization
+                    </p>
+
+                    <p class="text-gray-600 mb-6">
+                        Compare how query structure affects index usage and performance
+                    </p>
+
+                    <!-- 🔥 SUMMARY CARDS -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+                        <div id="joinCard" class="card p-4 rounded bg-red-100 text-center">
+                            <h3 class="font-bold">JOIN</h3>
+                            <p id="joinTime">--</p>
+                            <p id="joinLabel" class="text-sm text-red-600"></p>
+                        </div>
+
+                        <div id="limitCard" class="card p-4 rounded bg-yellow-100 text-center">
+                            <h3 class="font-bold">LIMIT</h3>
+                            <p id="limitTime">--</p>
+                            <p id="limitLabel" class="text-sm text-yellow-700"></p>
+                        </div>
+
+                        <div id="directCard" class="card p-4 rounded bg-green-100 text-center">
+                            <h3 class="font-bold">DIRECT</h3>
+                            <p id="directTime">--</p>
+                            <p id="directLabel" class="text-sm text-green-700"></p>
+                        </div>
+
+                    </div>
+
+                    <!-- 🔥 BUTTONS -->
+                    <div class="flex gap-3 mb-6">
+                        <button id="joinBtn" onclick="runDBAnalysis('join')"
+                            class="px-4 py-2 rounded bg-red-500 text-white">JOIN Query</button>
+                        <button id="limitBtn" onclick="runDBAnalysis('limit')"
+                            class="px-4 py-2 rounded bg-yellow-500 text-white">LIMIT Query</button>
+                        <button id="directBtn" onclick="runDBAnalysis('direct')"
+                            class="px-4 py-2 rounded bg-green-600 text-white">DIRECT Query</button>
+                    </div>
+
+                    <div class="w-full">
+                        <h2 id="modeLabel" class="text-lg font-semibold mb-4"></h2>
+                    </div>
+
+                    <!-- 🔥 METRICS -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+
+                        <div class="p-5 bg-white rounded shadow text-center border-2 border-blue-500 min-w-fix">
+                            <p class="text-gray-500 text-sm">Rows Processed</p>
+                            <p id="rowsProcessed" class="text-2xl font-bold"></p>
+                        </div>
+
+                        <div class="p-4 bg-white rounded shadow text-center min-w-fix">
+                            <p class="text-gray-500 text-sm">Sorting</p>
+                            <p id="sortUsed"></p>
+                        </div>
+
+                        <div class="p-4 bg-white rounded shadow text-center min-w-fix">
+                            <p class="text-gray-500 text-sm">Index</p>
+                            <p id="indexUsed"></p>
+                        </div>
+
+                        <div class="p-4 bg-white rounded shadow text-center">
+                            <p class="text-gray-500 text-sm">Time</p>
+                            <p id="execTime"></p>
+                        </div>
+
+                    </div>
+
+                    <!-- 🔥 INSIGHT -->
+                    <div id="insightBox" class="bg-blue-100 p-3 rounded mb-2 text-center font-medium"></div>
+
+                    <!-- 🔥 VERDICT -->
+                    <div id="verdictBox" class="bg-green-100 p-3 rounded mb-2 text-center font-semibold"></div>
+
+                    <!-- 🔥 ERROR / STATUS -->
+                    <p id="statusMessage" class="text-center text-sm mb-4"></p>
+
+                    <!-- 🔥 NOTE -->
+                    <p class="text-xs text-gray-500 mb-4 text-center">
+                        ⚠️ Performance differences amplify with larger datasets. Rows processed is the most reliable
+                        metric.
+                    </p>
+
+                    <!-- 🔥 PLAN -->
+                    <button onclick="togglePlan()" class="text-sm text-gray-600 mb-2">
+                        ▶ View Execution Plan
+                    </button>
+
+                    <pre id="queryPlan"
+                        class="hidden bg-black text-green-400 p-3 rounded text-xs overflow-auto max-h-64 w-full break-words">
+    </pre>
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -22,9 +22,9 @@ function generateSchedule(topics, dailyHours) {
         const currentDay = new Date(baseDate);
         currentDay.setDate(baseDate.getDate() + dayCount - 1);
 
-        // STEP 1 — Priority Calculation
         let maxPriority = 0;
 
+        // STEP 1 — Priority Calculation
         for (let t of topics) {
             const remainingDays = Math.max(
                 1,
@@ -41,10 +41,11 @@ function generateSchedule(topics, dailyHours) {
             }
 
             t.priority = p;
+            t._urgency = urgency; // 🔥 store for explainability
             if (p > maxPriority) maxPriority = p;
         }
 
-        // STEP 2 — Normalize + Smooth + Clamp + Tie-break
+        // STEP 2 — Normalize + Smooth + Clamp
         for (let t of topics) {
             let p = t.priority / (maxPriority || 1);
 
@@ -78,6 +79,11 @@ function generateSchedule(topics, dailyHours) {
                 topic: t.name,
                 hours,
                 priority: Number(t.priority.toFixed(3)),
+                reason: {
+                    difficulty: Number(t.difficulty.toFixed(2)),
+                    remaining_hours: Number(t.remaining_hours.toFixed(2)),
+                    urgency: Number(t._urgency.toFixed(3)),
+                }
             });
 
             t.remaining_hours -= hours;
@@ -87,7 +93,7 @@ function generateSchedule(topics, dailyHours) {
             if (remaining <= 0) break;
         }
 
-        // STEP 5 — Fill Remaining (efficient)
+        // STEP 5 — Fill Remaining
         let i = 0;
         while (remaining > 0 && i < topics.length) {
             let t = topics[i];
@@ -108,6 +114,11 @@ function generateSchedule(topics, dailyHours) {
                         topic: t.name,
                         hours: extra,
                         priority: Number(t.priority.toFixed(3)),
+                        reason: {
+                            difficulty: Number(t.difficulty.toFixed(2)),
+                            remaining_hours: Number(t.remaining_hours.toFixed(2)),
+                            urgency: Number(t._urgency.toFixed(3)),
+                        }
                     });
 
                     t.remaining_hours -= extra;
@@ -118,9 +129,9 @@ function generateSchedule(topics, dailyHours) {
             i++;
         }
 
-        // STEP 6 — Controlled Revision
+        // STEP 6 — Revision
         if (dayCount > 1 && schedule.length > 0) {
-            let prevTopics = schedule[dayCount - 2].plan;
+            let prevTopics = schedule[dayCount - 2].sessions;
             let revisionCount = 0;
 
             for (let p of prevTopics) {
@@ -132,6 +143,7 @@ function generateSchedule(topics, dailyHours) {
                         topic: `Revision: ${p.topic}`,
                         hours: 0.5,
                         priority: 0,
+                        reason: { note: "Revision from previous day" }
                     });
 
                     remaining -= 0.5;
@@ -140,9 +152,8 @@ function generateSchedule(topics, dailyHours) {
             }
         }
 
-        // 🔥 STEP 7 — FINAL MICRO FIX: Reinforcement (NO UNUSED TIME)
+        // STEP 7 — Reinforcement
         if (remaining > 0 && dayPlan.length > 0) {
-            // 🔥 Extract ONLY original topics (no Revision / Reinforce)
             const baseTopics = dayPlan
                 .filter(p => !p.topic.startsWith("Revision") && !p.topic.startsWith("Reinforce"))
                 .map(p => p.topic);
@@ -158,9 +169,10 @@ function generateSchedule(topics, dailyHours) {
                 let reinforceHours = Math.min(0.5, remaining);
 
                 dayPlan.push({
-                    topic: `Reinforce: ${topicName}`, // ✅ always clean
+                    topic: `Reinforce: ${topicName}`,
                     hours: reinforceHours,
                     priority: 0,
+                    reason: { note: "Reinforcement for retention" }
                 });
 
                 remaining -= reinforceHours;
@@ -172,8 +184,9 @@ function generateSchedule(topics, dailyHours) {
         if (dayPlan.length === 0) break;
 
         schedule.push({
-            day: dayCount,
-            plan: dayPlan,
+            date: currentDay.toISOString().split("T")[0],
+            total_hours: dailyHours,
+            sessions: dayPlan,
         });
 
         dayCount++;

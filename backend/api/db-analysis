@@ -1,0 +1,35 @@
+router.get("/db-analysis", async (req, res) => {
+  const { mode } = req.query; // "before" or "after"
+
+  let query;
+
+  if (mode === "before") {
+    // Query WITHOUT LIMIT (forces full scan + sort)
+    query = `
+      EXPLAIN ANALYZE
+      SELECT *
+      FROM "ScheduleItems" si
+      JOIN "Schedules" s ON si."ScheduleId" = s.id
+      WHERE s.date::date = CURRENT_DATE
+      ORDER BY si.priority_score DESC;
+    `;
+  } else {
+    // Query WITH LIMIT (uses index)
+    query = `
+      EXPLAIN ANALYZE
+      SELECT *
+      FROM "ScheduleItems" si
+      JOIN "Schedules" s ON si."ScheduleId" = s.id
+      WHERE s.date::date = CURRENT_DATE
+      ORDER BY si.priority_score DESC
+      LIMIT 20;
+    `;
+  }
+
+  const result = await sequelize.query(query);
+
+  res.json({
+    mode,
+    plan: result[0]
+  });
+});

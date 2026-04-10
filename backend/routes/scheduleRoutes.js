@@ -1,82 +1,165 @@
 const express = require("express");
 const router = express.Router();
-const { Topic, Schedule, ScheduleItem } = require("../models");
+
+const { Topic, Schedule, ScheduleItem, StudyLog, sequelize } = require("../models");
 const { generateSchedule } = require("../services/scheduler");
-const { StudyLog } = require("../models");
 
-router.post("/generate", async (req, res) => {
+// 🔥 ADD AUTH
+const auth = require("../middleware/auth");
+
+//
+// 🔥 GENERATE SCHEDULE (FIXED FOR MULTI-USER)
+//
+router.post("/generate", auth, async (req, res) => {
+    const t = await sequelize.transaction();
+
     try {
-        console.time("schedule");
-
         const { dailyHours } = req.body;
 
+        if (!dailyHours || dailyHours <= 0) {
+            return res.status(400).json({ error: "Invalid daily hours" });
+        }
+
+        // 🔹 Fetch topics + logs
         const topics = await Topic.findAll({
             include: [{ model: StudyLog, as: "StudyLogs" }],
+            transaction: t
         });
 
+        // 🔹 Generate schedule
         const scheduleData = generateSchedule(topics, dailyHours);
 
-        // 🔥 Save efficiently
-        let savedSchedules = [];
+        if (!scheduleData || scheduleData.length === 0) {
+            throw new Error("Scheduler returned empty data");
+        }
 
-        for (let day of scheduleData) {
-            const schedule = await Schedule.create({
-                date: new Date(),
-                total_hours: dailyHours,
+        // ==========================================
+        // 🔥 DELETE ONLY CURRENT USER'S DATA
+        // ==========================================
+        const userSchedules = await Schedule.findAll({
+            where: { ownerId: req.user.id },
+            attributes: ["id"],
+            transaction: t
+        });
+
+        const scheduleIds = userSchedules.map(s => s.id);
+
+        if (scheduleIds.length > 0) {
+            await ScheduleItem.destroy({
+                where: { ScheduleId: scheduleIds },
+                transaction: t
             });
 
-            const items = day.plan.map(item => ({
-                topic_name: item.topic,
-                allocated_hours: item.hours,
-                priority_score: item.priority,
+            await Schedule.destroy({
+                where: { id: scheduleIds },
+                transaction: t
+            });
+        }
+
+        let savedSchedules = [];
+
+        // 🔥 PROCESS EACH DAY
+        for (let day of scheduleData) {
+
+            if (!day.sessions || day.sessions.length === 0) continue;
+
+            const schedule = await Schedule.create({
+                date: day.date,
+                total_hours: day.total_hours,
+                ownerId: req.user.id, // 🔥 CRITICAL FIX
+            }, { transaction: t });
+
+            // 🔥 GROUPING LOGIC (UNCHANGED)
+            const grouped = {};
+
+            for (let item of day.sessions) {
+                if (!item.topic) continue;
+
+                if (!grouped[item.topic]) {
+                    grouped[item.topic] = {
+                        hours: 0,
+                        priority: item.priority || 0,
+                        reason: item.reason || {}
+                    };
+                }
+
+                grouped[item.topic].hours += item.hours;
+            }
+
+            const items = Object.entries(grouped).map(([topic, data]) => ({
+                topic_name: topic,
+                allocated_hours: data.hours,
+                priority_score: data.priority,
+                reason: JSON.stringify(data.reason),
                 ScheduleId: schedule.id,
             }));
 
-            await ScheduleItem.bulkCreate(items);
+            await ScheduleItem.bulkCreate(items, { transaction: t });
 
             savedSchedules.push(schedule);
         }
 
-        console.timeEnd("schedule");
+        await t.commit();
 
         res.json({
-            message: "Schedule generated and saved",
-            data: scheduleData,
+            message: "Schedule generated successfully",
+            days: savedSchedules.length
         });
 
     } catch (err) {
-        console.error(err);
+        await t.rollback();
+        console.error("❌ ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
-// Get today's schedule
-router.get("/today", async (req, res) => {
-    try {
-        const today = new Date().toDateString();
 
-        const schedules = await Schedule.findAll({
+//
+// 🔥 GET TODAY (USER-SPECIFIC)
+//
+router.get("/today", auth, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split("T")[0];
+
+        const schedule = await Schedule.findOne({
+            where: {
+                date: today,
+                ownerId: req.user.id // 🔥 FILTER BY USER
+            },
             include: ScheduleItem,
         });
 
-        if (schedules.length === 0) {
-            return res.json({ message: "No schedules found" });
+        if (!schedule) {
+            return res.json({ message: "No schedule for today" });
         }
 
-        // Get latest schedule (simple logic)
-        const latest = schedules[schedules.length - 1];
-
         res.json({
-            date: latest.date,
-            items: latest.ScheduleItems,
+            date: schedule.date,
+            items: schedule.ScheduleItems,
         });
 
     } catch (err) {
-        console.error(err);
-
-        res.status(500).json({
-            error: err.message,
-            stack: err.stack
-        });
+        res.status(500).json({ error: err.message });
     }
 });
+
+//
+// 🔥 GET FULL SCHEDULE (USER-SPECIFIC)
+//
+router.get("/", auth, async (req, res) => {
+    try {
+        const schedules = await Schedule.findAll({
+            where: {
+                ownerId: req.user.id // 🔥 CRITICAL FIX
+            },
+            include: ScheduleItem,
+            order: [["date", "ASC"]],
+        });
+
+        res.json(schedules);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

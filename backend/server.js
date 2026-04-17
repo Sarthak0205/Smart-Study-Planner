@@ -1,36 +1,42 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 
-// ✅ Load DB + models
+// 🔥 DB INIT
 require("./config/db");
-const { sequelize } = require("./models"); // 🔥 FIX: IMPORT SEQUELIZE INSTANCE
+const { sequelize } = require("./models");
 
 const app = express();
 
+// ================= MIDDLEWARE =================
 app.use(cors());
 app.use(express.json());
 
-// ✅ Health check
+// ================= HEALTH CHECK =================
 app.get("/", (req, res) => {
     res.send("API Running");
 });
-const authRoutes = require("./routes/authRoutes");
-const planRoutes = require("./routes/planRoutes");
 
-// ✅ Routes
+// ================= ROUTES =================
+
+// 🔐 AUTH
+const authRoutes = require("./routes/authRoutes");
+app.use("/auth", authRoutes);
+
+// 📚 CORE SYSTEM
 app.use("/topics", require("./routes/topicRoutes"));
 app.use("/schedule", require("./routes/scheduleRoutes"));
 app.use("/log", require("./routes/logRoutes"));
-app.use("/auth", authRoutes);
-app.use("/plans", planRoutes);
+app.use("/plans", require("./routes/planRoutes")); // ⚠️ keep clean prefix
 
-// ================= DB ANALYSIS ROUTE =================
+// ================= DB ANALYSIS =================
 app.get("/api/db-analysis", async (req, res) => {
     try {
         const { mode } = req.query;
+
         let query;
 
-        // ================= QUERIES =================
         if (mode === "join") {
             query = `
                 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
@@ -40,9 +46,7 @@ app.get("/api/db-analysis", async (req, res) => {
                 WHERE s.date::date = CURRENT_DATE
                 ORDER BY si.priority_score DESC;
             `;
-        }
-
-        else if (mode === "limit") {
+        } else if (mode === "limit") {
             query = `
                 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
                 SELECT *
@@ -52,9 +56,7 @@ app.get("/api/db-analysis", async (req, res) => {
                 ORDER BY si.priority_score DESC
                 LIMIT 20;
             `;
-        }
-
-        else {
+        } else {
             query = `
                 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
                 SELECT *
@@ -65,98 +67,90 @@ app.get("/api/db-analysis", async (req, res) => {
             `;
         }
 
-        // ================= EXECUTION =================
         const [result] = await sequelize.query(query);
 
-        // ================= PLAN PARSING =================
         const rawPlan = result[0]["QUERY PLAN"][0];
         const planRoot = rawPlan.Plan;
 
-        // ================= METRIC EXTRACTION =================
-        function extractMetrics(planNode) {
+        // 🔍 METRICS EXTRACTION
+        function extractMetrics(node) {
             let totalRows = 0;
             let sharedHit = 0;
             let sharedRead = 0;
             let hasSort = false;
             let usesIndex = false;
-            let usesIndexForSort = false;
 
-            function traverse(node) {
-                // Rows processed
-                totalRows += node["Actual Rows"] || 0;
+            function traverse(n) {
+                totalRows += n["Actual Rows"] || 0;
+                sharedHit += n["Shared Hit Blocks"] || 0;
+                sharedRead += n["Shared Read Blocks"] || 0;
 
-                // Buffers
-                sharedHit += node["Shared Hit Blocks"] || 0;
-                sharedRead += node["Shared Read Blocks"] || 0;
+                if (n["Node Type"] === "Sort") hasSort = true;
 
-                // Detect sort
-                if (node["Node Type"] === "Sort") {
-                    hasSort = true;
-                }
-
-                // Detect index usage (only real index scans)
                 if (
-                    node["Node Type"] === "Index Scan" ||
-                    node["Node Type"] === "Index Only Scan"
+                    n["Node Type"] === "Index Scan" ||
+                    n["Node Type"] === "Index Only Scan"
                 ) {
                     usesIndex = true;
                 }
 
-                // Traverse children
-                if (node.Plans) {
-                    node.Plans.forEach(traverse);
-                }
+                if (n.Plans) n.Plans.forEach(traverse);
             }
 
-            traverse(planNode);
-
-            // 🔥 KEY LOGIC: index helps ordering ONLY if no sort exists
-            usesIndexForSort = usesIndex && !hasSort;
+            traverse(node);
 
             return {
                 totalRows,
-                buffers: {
-                    hit: sharedHit,
-                    read: sharedRead,
-                },
+                buffers: { hit: sharedHit, read: sharedRead },
                 hasSort,
                 usesIndex,
-                indexOptimizedOrder: usesIndexForSort
+                indexOptimizedOrder: usesIndex && !hasSort
             };
         }
+
         const extracted = extractMetrics(planRoot);
 
-        // ================= EXECUTION TIME =================
-        const executionTime = rawPlan["Execution Time"];
-
-        // ================= RESPONSE =================
         res.json({
             mode,
-
-            executionTime,
-
+            executionTime: rawPlan["Execution Time"],
             metrics: {
                 rowsProcessed: extracted.totalRows,
                 bufferHits: extracted.buffers.hit,
                 bufferReads: extracted.buffers.read,
             },
-
             flags: {
                 hasSort: extracted.hasSort,
                 usesIndex: extracted.usesIndex,
                 indexOptimizedOrder: extracted.indexOptimizedOrder
             },
-
-            plan: rawPlan, // full JSON for frontend viewer
+            plan: rawPlan
         });
 
     } catch (err) {
-        console.error(err);
+        console.error("DB ANALYSIS ERROR:", err);
         res.status(500).json({ error: "DB analysis failed" });
     }
 });
 
-// ✅ Start server
-app.listen(8000, () => {
-    console.log("Server running on port 8000");
+// ================= GLOBAL ERROR HANDLER =================
+app.use((err, req, res, next) => {
+    console.error("GLOBAL ERROR:", err);
+    res.status(500).json({ message: "Something went wrong" });
+});
+
+// ================= SERVER START =================
+const PORT = process.env.PORT || 8000;
+
+app.listen(PORT, async () => {
+    try {
+        await sequelize.authenticate();
+
+        // 🔥 ADD THIS LINE
+        await sequelize.sync({ force: true })
+
+        console.log("✅ PostgreSQL Connected");
+        console.log(`🚀 Server running on port ${PORT}`);
+    } catch (err) {
+        console.error("❌ DB connection failed:", err);
+    }
 });

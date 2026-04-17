@@ -4,38 +4,60 @@ const router = express.Router();
 const { Schedule, ScheduleItem, UserSchedule, User, sequelize } = require("../models");
 
 const auth = require("../middleware/auth");
+const role = require("../middleware/role");
 
 //
 // 🔥 CREATE PLAN
 //
 router.post("/", auth, async (req, res) => {
-    try {
-        const { title, isPublic } = req.body;
+    const t = await sequelize.transaction();
 
-        // 🔥 ONLY teacher/admin can create public plans
+    try {
+        const { title, isPublic, topics } = req.body;
+
+        // 🔒 ROLE CHECK (CLEAN)
         if (isPublic && !["teacher", "admin"].includes(req.user.role)) {
             return res.status(403).json({
-                message: "Only teachers can create public plans"
+                message: "Only teachers/admin can create public plans"
             });
         }
 
         const plan = await Schedule.create({
-            title: title || "Untitled Plan",
+            title: title || `Plan ${new Date().toLocaleDateString()}`,
             isPublic: isPublic || false,
             ownerId: req.user.id
+        }, { transaction: t });
+
+        if (topics && topics.length > 0) {
+            const items = topics.map(topic => ({
+                topic_name: topic.topic_name,
+                allocated_hours: topic.allocated_hours,
+                priority_score: topic.priority || 0,
+                reason: {},
+                ScheduleId: plan.id
+            }));
+
+            await ScheduleItem.bulkCreate(items, { transaction: t });
+        }
+
+        await t.commit();
+
+        res.json({
+            message: "Plan created successfully",
+            planId: plan.id
         });
 
-        res.json(plan);
-
     } catch (err) {
+        await t.rollback();
         res.status(500).json({ error: err.message });
     }
 });
 
+
 //
-// 🔥 GET PUBLIC PLANS
+// 🔥 GET PUBLIC PLANS (AUTH REQUIRED)
 //
-router.get("/public", async (req, res) => {
+router.get("/public", auth, async (req, res) => {
     try {
         const plans = await Schedule.findAll({
             where: { isPublic: true },
@@ -53,6 +75,7 @@ router.get("/public", async (req, res) => {
     }
 });
 
+
 //
 // 🔥 FOLLOW + CLONE PLAN
 //
@@ -62,13 +85,8 @@ router.post("/:id/follow", auth, async (req, res) => {
     try {
         const { id } = req.params;
 
-        console.log("🔥 FOLLOW API HIT");
-
-        // 🔹 Fetch original plan WITH items
         const originalPlan = await Schedule.findByPk(id, {
-            include: [{
-                model: ScheduleItem
-            }],
+            include: [ScheduleItem],
             transaction: t
         });
 
@@ -77,7 +95,12 @@ router.post("/:id/follow", auth, async (req, res) => {
             return res.status(404).json({ message: "Plan not found" });
         }
 
-        // 🔹 Prevent duplicate follow
+        // 🔒 ACCESS CONTROL
+        if (!originalPlan.isPublic && originalPlan.ownerId !== req.user.id) {
+            await t.rollback();
+            return res.status(403).json({ message: "Cannot follow private plan" });
+        }
+
         const existing = await UserSchedule.findOne({
             where: {
                 userId: req.user.id,
@@ -91,24 +114,18 @@ router.post("/:id/follow", auth, async (req, res) => {
             return res.status(400).json({ message: "Already following" });
         }
 
-        console.log("🔥 CLONING STARTED");
-
-        // 🔹 Create follow entry
         await UserSchedule.create({
             userId: req.user.id,
             scheduleId: id
         }, { transaction: t });
 
-        // 🔹 Create cloned schedule
         const newSchedule = await Schedule.create({
             title: originalPlan.title + " (My Copy)",
             isPublic: false,
             ownerId: req.user.id,
-            sourcePlanId: originalPlan.id // 🔥 NEW
-        });
-        console.log("🔥 NEW SCHEDULE CREATED:", newSchedule.id);
+            sourcePlanId: originalPlan.id
+        }, { transaction: t });
 
-        // 🔹 Clone items
         const items = (originalPlan.ScheduleItems || []).map(item => ({
             topic_name: item.topic_name,
             allocated_hours: item.allocated_hours,
@@ -124,16 +141,16 @@ router.post("/:id/follow", auth, async (req, res) => {
         await t.commit();
 
         res.json({
-            message: "Plan followed and cloned successfully",
+            message: "Plan followed successfully",
             newPlanId: newSchedule.id
         });
 
     } catch (err) {
         await t.rollback();
-        console.error("❌ FOLLOW ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
+
 
 //
 // 🔥 GET MY PLANS
@@ -146,10 +163,28 @@ router.get("/my", auth, async (req, res) => {
 
         const followed = await req.user.getFollowedPlans();
 
-        res.json({
-            owned,
-            followed
+        res.json({ owned, followed });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+//
+// 🔥 GET USER PLANS
+//
+router.get("/", auth, async (req, res) => {
+    try {
+        const plans = await Schedule.findAll({
+            where: {
+                ownerId: req.user.id,
+                generatedFromPlanId: null
+            },
+            include: [ScheduleItem]
         });
+
+        res.json(plans);
 
     } catch (err) {
         res.status(500).json({ error: err.message });

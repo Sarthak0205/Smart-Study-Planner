@@ -24,7 +24,14 @@ const Schedule = sequelize.define("Schedule", {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
     },
-
+    generatedFromPlanId: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
+    },
     // ✅ EXISTING
     date: {
         type: DataTypes.DATE,

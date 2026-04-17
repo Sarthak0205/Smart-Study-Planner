@@ -1,30 +1,43 @@
 const Sequelize = require("sequelize");
 const sequelize = require("../config/db");
 
-// 🔹 Existing models
+// 🔹 Models
 const Topic = require("./Topic");
 const Schedule = require("./Schedule");
 const ScheduleItem = require("./ScheduleItem");
 const StudyLog = require("./StudyLog");
 
-// 🔹 New models
 const User = require("./User")(sequelize, Sequelize.DataTypes);
-const UserSchedule = require("./UserSchedule")(sequelize, Sequelize.DataTypes);
+
+// ❌ REMOVED UserSchedule (COPY MODEL → no need)
 
 // 🔹 ================= RELATIONS =================
 
-// Topic ↔ StudyLog
-Topic.hasMany(StudyLog, { as: "StudyLogs" });
-StudyLog.belongsTo(Topic);
+// ================= USER ↔ TOPIC =================
+User.hasMany(Topic, {
+    foreignKey: "userId",
+    onDelete: "CASCADE"
+});
 
-// Schedule ↔ ScheduleItem
-Schedule.hasMany(ScheduleItem);
-ScheduleItem.belongsTo(Schedule);
+Topic.belongsTo(User, {
+    foreignKey: "userId"
+});
 
-// 🔥 User → Schedule (OWNER)
+// ================= PLAN (Schedule) ↔ TOPIC =================
+Schedule.hasMany(Topic, {
+    foreignKey: "planId",
+    onDelete: "CASCADE"
+});
+
+Topic.belongsTo(Schedule, {
+    foreignKey: "planId"
+});
+
+// ================= USER ↔ SCHEDULE (OWNER) =================
 User.hasMany(Schedule, {
     foreignKey: "ownerId",
-    as: "ownedSchedules"
+    as: "ownedSchedules",
+    onDelete: "CASCADE"
 });
 
 Schedule.belongsTo(User, {
@@ -32,21 +45,39 @@ Schedule.belongsTo(User, {
     as: "owner"
 });
 
-// 🔥 User ↔ Schedule (FOLLOW SYSTEM)
-User.belongsToMany(Schedule, {
-    through: UserSchedule,
-    foreignKey: "userId",
-    as: "followedPlans"
+// ================= SCHEDULE ↔ SCHEDULE ITEM =================
+Schedule.hasMany(ScheduleItem, {
+    foreignKey: "ScheduleId",
+    onDelete: "CASCADE"
 });
 
-Schedule.belongsToMany(User, {
-    through: UserSchedule,
-    foreignKey: "scheduleId",
-    as: "followers"
+ScheduleItem.belongsTo(Schedule, {
+    foreignKey: "ScheduleId"
+});
+
+// ================= SCHEDULE ITEM ↔ STUDY LOG =================
+ScheduleItem.hasMany(StudyLog, {
+    foreignKey: "ScheduleItemId",
+    onDelete: "CASCADE"
+});
+
+StudyLog.belongsTo(ScheduleItem, {
+    foreignKey: "ScheduleItemId"
+});
+
+// ================= USER ↔ STUDY LOG =================
+User.hasMany(StudyLog, {
+    foreignKey: "userId",
+    onDelete: "CASCADE"
+});
+
+StudyLog.belongsTo(User, {
+    foreignKey: "userId"
 });
 
 // 🔹 ================= SYNC =================
 
+// ⚠️ SAFE FOR DEV ONLY
 sequelize.sync({ alter: true })
     .then(() => console.log("Tables synced"))
     .catch(err => console.error(err));
@@ -60,6 +91,5 @@ module.exports = {
     Schedule,
     ScheduleItem,
     StudyLog,
-    User,
-    UserSchedule
+    User
 };

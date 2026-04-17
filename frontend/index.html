@@ -6,6 +6,163 @@
     <title>Smart Study Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* ===== GLOBAL ===== */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+
+        /* ===== CARD ===== */
+        .card {
+            background: linear-gradient(145deg, #ffffff, #f3f4f6);
+            border-radius: 18px;
+            padding: 22px;
+            margin-bottom: 24px;
+
+            box-shadow:
+                0 10px 25px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* subtle glow line */
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            width: 100%;
+            background: linear-gradient(90deg, #22c55e, #3b82f6);
+            opacity: 0.8;
+        }
+
+        /* hover lift */
+        .card:hover {
+            transform: translateY(-4px) scale(1.01);
+            box-shadow:
+                0 20px 40px rgba(0, 0, 0, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
+
+        /* ===== HEADINGS ===== */
+        .card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            color: #111827;
+        }
+
+        /* ===== TODAY SECTION ===== */
+        #todayContainer {
+            margin-top: 10px;
+        }
+
+        /* task items */
+        .task-item {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-top: 10px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            transform: translateX(4px);
+            background: #f9fafb;
+        }
+
+        /* task text */
+        .task-name {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .task-hours {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        /* ===== LABEL (Today / Upcoming) ===== */
+        .task-label {
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 999px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        /* today */
+        .label-today {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        /* upcoming */
+        .label-upcoming {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* ===== TOTAL HOURS ===== */
+        #todayHours {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        /* ===== BUTTON ===== */
+        button {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+
+            padding: 10px 16px;
+            border-radius: 10px;
+
+            font-weight: 600;
+            cursor: pointer;
+
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(34, 197, 94, 0.3);
+        }
+
+        /* ===== INPUTS ===== */
+        input {
+            width: 100%;
+            padding: 11px;
+            margin-bottom: 10px;
+
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+
+            background: #ffffff;
+
+            transition: all 0.2s ease;
+        }
+
+        input:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+            outline: none;
+        }
+
         /* ✅ Only apply to animated elements */
         .fade-in {
             will-change: opacity, transform;
@@ -76,216 +233,323 @@
 </head>
 
 <body class="bg-gray-100">
+    <div id="loginSection" class="flex items-center justify-center h-screen bg-gray-100">
+        <div class="bg-white p-8 rounded-2xl shadow-lg w-96">
 
-    <div class="flex min-h-screen">
+            <!-- TITLE -->
+            <h2 id="authTitle" class="text-xl font-bold mb-6 text-center">
+                Login
+            </h2>
 
-        <!-- 🔹 SIDEBAR -->
-        <div class="w-64 bg-white shadow p-5">
-            <h1 class="text-xl font-bold mb-6">Planner</h1>
+            <!-- NAME (REGISTER ONLY) -->
+            <input id="authName" placeholder="Full Name"
+                class="w-full border p-2 mb-3 rounded hidden focus:outline-none focus:ring-2 focus:ring-blue-400" />
 
-            <ul class="space-y-3">
-                <li onclick="showSection(event, 'dashboardSection')" class="cursor-pointer text-blue-500">Dashboard</li>
-                <li onclick="showSection(event, 'topicsSection')" class="cursor-pointer">Topics</li>
-                <li onclick="showSection(event, 'scheduleSection')" class="cursor-pointer">Schedule</li>
-                <li onclick="showSection(event, 'dbSection')" class="cursor-pointer">DB Analysis</li>
-            </ul>
+            <!-- EMAIL -->
+            <input id="email" type="email" placeholder="Email"
+                class="w-full border p-2 mb-3 rounded focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+            <!-- PASSWORD -->
+            <input id="password" type="password" placeholder="Password"
+                class="w-full border p-2 mb-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+            <select id="role"
+                class="w-full border p-2 mb-2 rounded hidden focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+            </select>
+            <!-- ERROR MESSAGE -->
+            <p id="authError" class="text-red-500 text-sm mb-3 hidden"></p>
+
+            <!-- BUTTON -->
+            <button id="authBtn" onclick="handleAuth()"
+                class="bg-blue-500 hover:bg-blue-600 text-white w-full py-2 rounded transition mb-3">
+                Login
+            </button>
+
+            <!-- TOGGLE -->
+            <p class="text-sm text-center text-gray-600">
+                <span id="toggleText">Don't have an account?</span>
+                <button onclick="toggleAuthMode()" class="text-blue-500 font-medium hover:underline ml-1">
+                    Register
+                </button>
+            </p>
+
+        </div>
+    </div>
+    <div id="app" class="hidden">
+        <div class="bg-white shadow px-6 py-3 flex justify-between items-center">
+            <h1 class="text-lg font-bold">Smart Study Planner</h1>
+
+            <button onclick="logout()" class="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600">
+                Logout
+            </button>
         </div>
 
-        <!-- 🔹 MAIN -->
-        <div class="flex-1 p-6 overflow-y-auto">
 
-            <!-- ================= DASHBOARD ================= -->
-            <div id="dashboardSection">
+        <div class="flex min-h-screen">
 
-                <div class="grid grid-cols-3 gap-4 mb-6">
+            <!-- 🔹 SIDEBAR -->
+            <div class="w-64 bg-white shadow p-5 overflow-visible relative">
 
-                    <div class="bg-white p-5 rounded shadow">
-                        <p class="text-gray-500">Today's Hours</p>
-                        <p id="todayHours" class="text-2xl font-bold">0</p>
-                    </div>
+                <h1 class="text-xl font-bold mb-6">Planner</h1>
 
-                    <div class="bg-white p-5 rounded shadow">
-                        <p class="text-gray-500">Topics</p>
-                        <p id="topicCount" class="text-2xl font-bold">0</p>
-                    </div>
+                <!-- 🔥 PLAN SECTION -->
+                <div class="mb-6">
+                    <p class="text-sm text-gray-500 mb-2">Active Plan</p>
 
-                    <div class="bg-white p-5 rounded shadow">
-                        <p class="text-gray-500">Status</p>
-                        <p class="text-green-500 font-bold">Active</p>
-                    </div>
+                    <select id="planSelect" onchange="handlePlanChange(this)">
+                    </select>
 
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-
-                    <!-- ADD TOPIC -->
-                    <div class="bg-white p-5 rounded shadow">
-                        <h3 class="font-semibold mb-3">Add Topic</h3>
-
-                        <input id="name" placeholder="Topic Name" class="w-full border p-2 mb-2 rounded" />
-                        <input id="difficulty" type="number" placeholder="Difficulty (0-5)"
-                            class="w-full border p-2 mb-2 rounded" />
-                        <input id="hours" type="number" placeholder="Estimated Hours"
-                            class="w-full border p-2 mb-2 rounded" />
-                        <input id="deadline" type="date" class="w-full border p-2 mb-2 rounded" />
-
-                        <button onclick="addTopic()" class="bg-blue-500 text-white w-full py-2 rounded">
-                            Add Topic
-                        </button>
-                    </div>
-
-                    <!-- GENERATE -->
-                    <div class="bg-white p-5 rounded shadow">
-                        <h3 class="font-semibold mb-3">Generate Schedule</h3>
-
-                        <input id="dailyHours" type="number" placeholder="Daily Hours"
-                            class="w-full border p-2 mb-3 rounded" />
-
-                        <button onclick="generateSchedule()" class="bg-green-500 text-white w-full py-2 rounded">
-                            Generate
-                        </button>
-                    </div>
-
-                </div>
-
-            </div>
-
-            <!-- ================= TOPICS ================= -->
-            <div id="topicsSection" class="hidden">
-                <h2 class="text-xl font-semibold mb-4">Topics</h2>
-                <div id="topicsContainer" class="grid grid-cols-3 gap-4"></div>
-            </div>
-
-            <!-- ================= SCHEDULE ================= -->
-            <div id="scheduleSection" class="hidden">
-                <h2 class="text-xl font-semibold mb-4">Schedule</h2>
-
-                <div class="bg-white p-5 rounded shadow mb-6">
-                    <h3 class="font-semibold mb-2">Today's Plan</h3>
-                    <div id="todayPlan"></div>
-                </div>
-
-                <table class="w-full bg-white rounded shadow">
-                    <thead class="bg-gray-200">
-                        <tr>
-                            <th class="p-2">Date</th>
-                            <th>Topic</th>
-                            <th>Hours</th>
-                            <th>Priority</th>
-                            <th>Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody id="scheduleTable"></tbody>
-                </table>
-            </div>
-
-            <!-- ================= DB ANALYSIS ================= -->
-            <!-- ================= DB ANALYSIS ================= -->
-            <div id="dbSection" class="hidden p-6">
-
-                <div class="max-w-6xl mx-auto">
-
-                    <h1 class="text-2xl font-bold mb-2">Database Performance Analysis</h1>
-
-                    <p class="text-gray-500 text-sm mb-2">
-                        Concepts: Indexing • Query Optimization • Execution Plans • Cost-Based Optimization
-                    </p>
-
-                    <p class="text-gray-600 mb-6">
-                        Compare how query structure affects index usage and performance
-                    </p>
-
-                    <!-- 🔥 SUMMARY CARDS -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-
-                        <div id="joinCard" class="card p-4 rounded bg-red-100 text-center">
-                            <h3 class="font-bold">JOIN</h3>
-                            <p id="joinTime">--</p>
-                            <p id="joinLabel" class="text-sm text-red-600"></p>
-                        </div>
-
-                        <div id="limitCard" class="card p-4 rounded bg-yellow-100 text-center">
-                            <h3 class="font-bold">LIMIT</h3>
-                            <p id="limitTime">--</p>
-                            <p id="limitLabel" class="text-sm text-yellow-700"></p>
-                        </div>
-
-                        <div id="directCard" class="card p-4 rounded bg-green-100 text-center">
-                            <h3 class="font-bold">DIRECT</h3>
-                            <p id="directTime">--</p>
-                            <p id="directLabel" class="text-sm text-green-700"></p>
-                        </div>
-
-                    </div>
-
-                    <!-- 🔥 BUTTONS -->
-                    <div class="flex gap-3 mb-6">
-                        <button id="joinBtn" onclick="runDBAnalysis('join')"
-                            class="px-4 py-2 rounded bg-red-500 text-white">JOIN Query</button>
-                        <button id="limitBtn" onclick="runDBAnalysis('limit')"
-                            class="px-4 py-2 rounded bg-yellow-500 text-white">LIMIT Query</button>
-                        <button id="directBtn" onclick="runDBAnalysis('direct')"
-                            class="px-4 py-2 rounded bg-green-600 text-white">DIRECT Query</button>
-                    </div>
-
-                    <div class="w-full">
-                        <h2 id="modeLabel" class="text-lg font-semibold mb-4"></h2>
-                    </div>
-
-                    <!-- 🔥 METRICS -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-
-                        <div class="p-5 bg-white rounded shadow text-center border-2 border-blue-500 min-w-fix">
-                            <p class="text-gray-500 text-sm">Rows Processed</p>
-                            <p id="rowsProcessed" class="text-2xl font-bold"></p>
-                        </div>
-
-                        <div class="p-4 bg-white rounded shadow text-center min-w-fix">
-                            <p class="text-gray-500 text-sm">Sorting</p>
-                            <p id="sortUsed"></p>
-                        </div>
-
-                        <div class="p-4 bg-white rounded shadow text-center min-w-fix">
-                            <p class="text-gray-500 text-sm">Index</p>
-                            <p id="indexUsed"></p>
-                        </div>
-
-                        <div class="p-4 bg-white rounded shadow text-center">
-                            <p class="text-gray-500 text-sm">Time</p>
-                            <p id="execTime"></p>
-                        </div>
-
-                    </div>
-
-                    <!-- 🔥 INSIGHT -->
-                    <div id="insightBox" class="bg-blue-100 p-3 rounded mb-2 text-center font-medium"></div>
-
-                    <!-- 🔥 VERDICT -->
-                    <div id="verdictBox" class="bg-green-100 p-3 rounded mb-2 text-center font-semibold"></div>
-
-                    <!-- 🔥 ERROR / STATUS -->
-                    <p id="statusMessage" class="text-center text-sm mb-4"></p>
-
-                    <!-- 🔥 NOTE -->
-                    <p class="text-xs text-gray-500 mb-4 text-center">
-                        ⚠️ Performance differences amplify with larger datasets. Rows processed is the most reliable
-                        metric.
-                    </p>
-
-                    <!-- 🔥 PLAN -->
-                    <button onclick="togglePlan()" class="text-sm text-gray-600 mb-2">
-                        ▶ View Execution Plan
+                    <button onclick="openPlanModal()" class="w-full bg-blue-500 text-white py-1 rounded text-sm">
+                        + New Plan
                     </button>
+                </div>
 
-                    <pre id="queryPlan"
-                        class="hidden bg-black text-green-400 p-3 rounded text-xs overflow-auto max-h-64 w-full break-words">
+                <!-- 🔹 NAVIGATION -->
+                <ul class="space-y-3 flex-1">
+                    <li onclick="showSection(event, 'dashboardSection')" class="cursor-pointer text-blue-500">
+                        Dashboard
+                    </li>
+                    <li onclick="showSection(event, 'topicsSection')" class="cursor-pointer">
+                        Topics
+                    </li>
+                    <li onclick="showSection(event, 'scheduleSection')" class="cursor-pointer">
+                        Schedule
+                    </li>
+                    <li onclick="showSection(event, 'dbSection')" class="cursor-pointer">
+                        DB Analysis
+                    </li>
+                </ul>
+
+            </div>
+
+            <!-- 🔹 MAIN -->
+            <div class="flex-1 p-6 overflow-y-auto">
+
+                <!-- ================= DASHBOARD ================= -->
+                <div id="dashboardSection">
+
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+
+                        <div class="bg-white p-5 rounded shadow">
+                            <p class="text-gray-500">Today's Hours</p>
+                            <p id="todayHours" class="text-2xl font-bold">0</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded shadow">
+                            <p class="text-gray-500">Topics</p>
+                            <p id="topicCount" class="text-2xl font-bold">0</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded shadow">
+                            <p class="text-gray-500">Status</p>
+                            <p class="text-green-500 font-bold">Active</p>
+                        </div>
+
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+
+                        <!-- ADD TOPIC -->
+                        <div class="card">
+                            <h3>Add Topic</h3>
+
+                            <input id="topicName" placeholder="Topic Name" />
+
+                            <input id="difficulty" type="number" min="0" max="5" placeholder="Difficulty (0-5)" />
+
+                            <input id="hours" type="number" placeholder="Estimated Hours" />
+
+                            <label>Deadline</label>
+                            <input id="deadline" type="date" />
+
+                            <button onclick="addTopic()">Add Topic</button>
+                        </div>
+
+                        <!-- GENERATE -->
+                        <div class="bg-white p-5 rounded shadow">
+                            <h3 class="font-semibold mb-3">Generate Schedule</h3>
+
+                            <input id="dailyHours" type="number" placeholder="Daily Hours"
+                                class="w-full border p-2 mb-3 rounded" />
+
+                            <button onclick="generateSchedule()" class="bg-green-500 text-white w-full py-2 rounded">
+                                Generate
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- ================= TOPICS ================= -->
+                <div id="topicsSection" class="hidden">
+                    <h2 class="text-xl font-semibold mb-4">Topics</h2>
+                    <div id="topicsContainer" class="grid grid-cols-3 gap-4"></div>
+                </div>
+
+                <!-- ================= SCHEDULE ================= -->
+                <div id="scheduleSection" class="hidden">
+                    <h2 class="text-xl font-semibold mb-4">Schedule</h2>
+
+                    <div class="card">
+                        <h3>Today's Plan</h3>
+
+                        <div id="todayContainer">
+                            <p>No tasks yet</p>
+                        </div>
+
+                        <p>Total Hours: <span id="scheduleHours">0</span></p>
+                    </div>
+
+                    <table class="w-full bg-white rounded shadow">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="p-2">Date</th>
+                                <th>Topic</th>
+                                <th>Hours</th>
+                                <th>Priority</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleTable"></tbody>
+                    </table>
+                </div>
+
+                <!-- ================= DB ANALYSIS ================= -->
+                <!-- ================= DB ANALYSIS ================= -->
+                <div id="dbSection" class="hidden p-6">
+
+                    <div class="max-w-6xl mx-auto">
+
+                        <h1 class="text-2xl font-bold mb-2">Database Performance Analysis</h1>
+
+                        <p class="text-gray-500 text-sm mb-2">
+                            Concepts: Indexing • Query Optimization • Execution Plans • Cost-Based Optimization
+                        </p>
+
+                        <p class="text-gray-600 mb-6">
+                            Compare how query structure affects index usage and performance
+                        </p>
+
+                        <!-- 🔥 SUMMARY CARDS -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+                            <div id="joinCard" class="card p-4 rounded bg-red-100 text-center">
+                                <h3 class="font-bold">JOIN</h3>
+                                <p id="joinTime">--</p>
+                                <p id="joinLabel" class="text-sm text-red-600"></p>
+                            </div>
+
+                            <div id="limitCard" class="card p-4 rounded bg-yellow-100 text-center">
+                                <h3 class="font-bold">LIMIT</h3>
+                                <p id="limitTime">--</p>
+                                <p id="limitLabel" class="text-sm text-yellow-700"></p>
+                            </div>
+
+                            <div id="directCard" class="card p-4 rounded bg-green-100 text-center">
+                                <h3 class="font-bold">DIRECT</h3>
+                                <p id="directTime">--</p>
+                                <p id="directLabel" class="text-sm text-green-700"></p>
+                            </div>
+
+                        </div>
+
+                        <!-- 🔥 BUTTONS -->
+                        <div class="flex gap-3 mb-6">
+                            <button id="joinBtn" onclick="runDBAnalysis('join')"
+                                class="px-4 py-2 rounded bg-red-500 text-white">JOIN Query</button>
+                            <button id="limitBtn" onclick="runDBAnalysis('limit')"
+                                class="px-4 py-2 rounded bg-yellow-500 text-white">LIMIT Query</button>
+                            <button id="directBtn" onclick="runDBAnalysis('direct')"
+                                class="px-4 py-2 rounded bg-green-600 text-white">DIRECT Query</button>
+                        </div>
+
+                        <div class="w-full">
+                            <h2 id="modeLabel" class="text-lg font-semibold mb-4"></h2>
+                        </div>
+
+                        <!-- 🔥 METRICS -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+
+                            <div class="p-5 bg-white rounded shadow text-center border-2 border-blue-500 min-w-fix">
+                                <p class="text-gray-500 text-sm">Rows Processed</p>
+                                <p id="rowsProcessed" class="text-2xl font-bold"></p>
+                            </div>
+
+                            <div class="p-4 bg-white rounded shadow text-center min-w-fix">
+                                <p class="text-gray-500 text-sm">Sorting</p>
+                                <p id="sortUsed"></p>
+                            </div>
+
+                            <div class="p-4 bg-white rounded shadow text-center min-w-fix">
+                                <p class="text-gray-500 text-sm">Index</p>
+                                <p id="indexUsed"></p>
+                            </div>
+
+                            <div class="p-4 bg-white rounded shadow text-center">
+                                <p class="text-gray-500 text-sm">Time</p>
+                                <p id="execTime"></p>
+                            </div>
+
+                        </div>
+
+                        <!-- 🔥 INSIGHT -->
+                        <div id="insightBox" class="bg-blue-100 p-3 rounded mb-2 text-center font-medium"></div>
+
+                        <!-- 🔥 VERDICT -->
+                        <div id="verdictBox" class="bg-green-100 p-3 rounded mb-2 text-center font-semibold"></div>
+
+                        <!-- 🔥 ERROR / STATUS -->
+                        <p id="statusMessage" class="text-center text-sm mb-4"></p>
+
+                        <!-- 🔥 NOTE -->
+                        <p class="text-xs text-gray-500 mb-4 text-center">
+                            ⚠️ Performance differences amplify with larger datasets. Rows processed is the most reliable
+                            metric.
+                        </p>
+
+                        <!-- 🔥 PLAN -->
+                        <button onclick="togglePlan()" class="text-sm text-gray-600 mb-2">
+                            ▶ View Execution Plan
+                        </button>
+
+                        <pre id="queryPlan"
+                            class="hidden bg-black text-green-400 p-3 rounded text-xs overflow-auto max-h-64 w-full break-words">
     </pre>
 
+                    </div>
                 </div>
+
             </div>
 
         </div>
+    </div>
 
+    <!-- 🔥 CREATE PLAN MODAL -->
+    <div id="planModal" class="fixed inset-0 bg-black bg-opacity-40 hidden items-center justify-center">
+
+        <div class="bg-white p-6 rounded shadow w-80 fade-in">
+
+            <h2 class="text-lg font-semibold mb-4">Create New Plan</h2>
+
+            <input id="planNameInput" placeholder="Plan name" class="w-full border p-2 mb-4 rounded" />
+
+            <p id="planError" class="text-red-500 text-sm mb-2 hidden"></p>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closePlanModal()" class="px-3 py-1 border rounded">
+                    Cancel
+                </button>
+
+                <button onclick="submitPlan()" class="bg-blue-500 text-white px-3 py-1 rounded">
+                    Create
+                </button>
+            </div>
+
+        </div>
     </div>
 
     <script src="app.js"></script>

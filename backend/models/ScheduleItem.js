@@ -6,6 +6,10 @@ const ScheduleItem = sequelize.define("ScheduleItem", {
     allocated_hours: DataTypes.FLOAT,
     priority_score: DataTypes.FLOAT,
     reason: DataTypes.JSON,
+    sourceItemId: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    }
 });
 
 module.exports = ScheduleItem;

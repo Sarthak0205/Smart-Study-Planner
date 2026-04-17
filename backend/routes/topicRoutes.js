@@ -1,21 +1,61 @@
 const express = require("express");
 const router = express.Router();
 const { Topic } = require("../models");
+const auth = require("../middleware/auth");
 
-// Add topic
-router.post("/", async (req, res) => {
+// 🔹 GET topics
+router.get("/", auth, async (req, res) => {
     try {
-        const topic = await Topic.create(req.body);
-        res.json(topic);
+        const planId = Number(req.query.planId);
+
+        if (!planId) {
+            return res.status(400).json({ message: "planId is required" });
+        }
+
+        const topics = await Topic.findAll({
+            where: {
+                planId: req.query.planId
+            },
+            order: [["createdAt", "DESC"]] // 🔥 consistent UI ordering
+        });
+
+        res.json(topics);
     } catch (err) {
-        res.status(500).json(err);
+        console.error(err);
+        res.status(500).json({ message: "Failed to fetch topics" });
     }
 });
 
-// Get all topics
-router.get("/", async (req, res) => {
-    const topics = await Topic.findAll();
-    res.json(topics);
+// 🔹 CREATE topic
+router.post("/", auth, async (req, res) => {
+    try {
+        const { name, difficulty, estimated_hours, deadline, planId } = req.body;
+
+        const userId = req.user.id;
+
+        if (!name || !estimated_hours || !planId) {
+            return res.status(400).json({
+                message: "name, estimated_hours, planId required"
+            });
+        }
+
+        const topic = await Topic.create({
+            name: name.trim().toLowerCase(), // normalize
+            difficulty,
+            estimated_hours,
+            deadline,
+            userId,
+            planId,
+            progress: 0,
+            status: "pending"
+        });
+
+        res.json(topic);
+
+    } catch (err) {
+        console.error("❌ TOPIC CREATE ERROR:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;

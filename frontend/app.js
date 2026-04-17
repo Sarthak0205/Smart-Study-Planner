@@ -1,76 +1,278 @@
 const API = "http://localhost:8000";
 let currentTopic = null;
-
+let ACTIVE_PLAN_ID = null;
 // 🔥 STORE RESULTS FOR COMPARISON
 const results = {
   join: null,
   limit: null,
   direct: null
 };
+let isLoginMode = true;
 
-init();
 
 async function init() {
-  await loadTopics();
-  await loadSchedule();
+  await loadPlans();
+
+  if (!ACTIVE_PLAN_ID) {
+    console.warn("No active plan — skipping dependent loads");
+    clearUIForNoPlan();
+    return;
+  }
+
+  await Promise.all([
+    loadTopics(),
+    loadSchedule(),
+    loadToday()
+  ]);
 }
 
+async function loadPlans() {
+  const res = await apiFetch(`${API}/plans`);
+  const plans = await res.json();
+
+  const select = document.getElementById("planSelect");
+  select.innerHTML = "";
+
+  if (!plans || plans.length === 0) {
+    ACTIVE_PLAN_ID = null;
+
+    const opt = document.createElement("option");
+    opt.innerText = "No plans yet";
+    opt.disabled = true;
+    opt.selected = true;
+    select.appendChild(opt);
+
+    return;
+  }
+
+  plans.forEach(p => {
+    const option = document.createElement("option");
+    option.value = p.id;
+    option.innerText = p.title || `Plan ${p.id}`;
+    select.appendChild(option);
+  });
+
+  // ✅ ensure valid active plan
+  if (!ACTIVE_PLAN_ID || !plans.find(p => p.id == ACTIVE_PLAN_ID)) {
+    ACTIVE_PLAN_ID = plans[0].id;
+  }
+
+  select.value = ACTIVE_PLAN_ID;
+}
+async function changePlan() {
+  const select = document.getElementById("planSelect");
+  const id = select.value;
+
+  if (!id) return;
+
+  ACTIVE_PLAN_ID = id;
+
+  await init();
+}
+
+async function loadToday() {
+  if (!ACTIVE_PLAN_ID) return;
+
+  const container = document.getElementById("todayContainer");
+  const hoursEl = document.getElementById("scheduleHours");
+
+  if (!container || !hoursEl) {
+    console.error("❌ todayContainer or todayHours missing");
+    return;
+  }
+
+  container.innerHTML = "Loading...";
+  hoursEl.innerText = 0;
+
+  try {
+    const res = await apiFetch(
+      `${API}/schedule/today?planId=${ACTIVE_PLAN_ID}`
+    );
+
+    const schedule = await res.json();
+
+    if (!schedule || !schedule.ScheduleItems?.length) {
+      container.innerHTML = "<p>No tasks available</p>";
+      return;
+    }
+
+    const today = new Date();
+    const scheduleDate = new Date(schedule.date);
+
+    const isToday =
+      today.toDateString() === scheduleDate.toDateString();
+
+    container.innerHTML = `
+      <span class="task-label ${isToday ? "label-today" : "label-upcoming"}">
+        ${isToday ? "Today's Tasks" : "Upcoming Tasks"}
+      </span>
+    `;
+
+    let total = 0;
+
+    schedule.ScheduleItems.forEach(item => {
+      if (item.StudyLogs && item.StudyLogs.length > 0) {
+        return; // skip completed tasks
+      }
+      total += Number(item.allocated_hours);
+
+      const div = document.createElement("div");
+      div.className = "task-item";
+
+      div.innerHTML = `
+        <div class="task-main">
+          <span class="task-name">${item.topic_name}</span>
+          <span class="task-hours">${item.allocated_hours} hrs</span>
+        </div>
+
+        <div class="task-actions">
+          <button class="done-btn easy">Easy</button>
+          <button class="done-btn medium">Medium</button>
+          <button class="done-btn hard">Hard</button>
+        </div>
+      `;
+
+      const buttons = div.querySelectorAll(".done-btn");
+      console.log("ITEM HOURS:", item.allocated_hours);
+      console.log("TOTAL:", total);
+      buttons.forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (btn.dataset.clicked) return;
+          btn.dataset.clicked = "true";
+
+          buttons.forEach(b => (b.disabled = true));
+
+          try {
+            await markDone(
+              item.id,
+              btn.innerText.toLowerCase(),
+              buttons,
+              div,
+              item.allocated_hours,
+              hoursEl
+            );
+          } catch (err) {
+            buttons.forEach(b => (b.disabled = false));
+            delete btn.dataset.clicked;
+          }
+        });
+      });
+
+      container.appendChild(div);
+    });
+
+    // ✅ CORRECT TOTAL HOURS
+    hoursEl.innerText = total;
+
+  } catch (err) {
+    console.error("❌ loadToday error:", err);
+    container.innerHTML = "<p>Error loading tasks</p>";
+    hoursEl.innerText = 0;
+  }
+}
 //
 // 🔹 LOAD TOPICS
 //
+
 async function loadTopics() {
-  const res = await fetch(`${API}/topics`);
+  const container = document.getElementById("topicsContainer");
+  const countEl = document.getElementById("topicCount");
+
+  if (!ACTIVE_PLAN_ID) {
+    container.innerHTML = "<p class='text-gray-500'>Select a plan first</p>";
+    countEl.innerText = 0;
+    return;
+  }
+
+  const requestPlanId = ACTIVE_PLAN_ID; // 🔥 SNAPSHOT
+
+  container.innerHTML = "Loading...";
+
+  let res;
+
+  try {
+    res = await apiFetch(`${API}/topics?planId=${requestPlanId}`);
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = "<p class='text-red-500'>Failed to load topics</p>";
+    return;
+  }
+
+  if (!res || !res.ok) {
+    container.innerHTML = "<p class='text-red-500'>Error loading topics</p>";
+    return;
+  }
+
   const topics = await res.json();
 
-  topicCount.innerText = topics.length;
-  topicsContainer.innerHTML = "";
+  // 🔴 CRITICAL CHEC
+
+  if (!Array.isArray(topics) || topics.length === 0) {
+    container.innerHTML = "<p class='text-gray-500'>No topics in this plan</p>";
+    countEl.innerText = 0;
+    return;
+  }
+
+  container.innerHTML = "";
 
   topics.forEach(t => {
-    topicsContainer.innerHTML += `
-      <div class="bg-white p-5 rounded-xl shadow hover:shadow-lg transition">
-        <h3 class="font-semibold text-lg">${t.name}</h3>
+    const div = document.createElement("div");
+    div.className = "bg-white p-5 rounded-xl shadow";
 
-        <p class="text-sm text-gray-500 mt-2">
-          ${new Date(t.deadline).toLocaleDateString()}
-        </p>
-
-        <div class="mt-3 flex justify-between">
-          <span class="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs">
-            Difficulty ${t.difficulty}
-          </span>
-          <span class="text-xs text-gray-400">
-            ${(t.progress * 100 || 0).toFixed(0)}%
-          </span>
-        </div>
-      </div>
+    div.innerHTML = `
+      <h3 class="font-semibold">${t.name}</h3>
+      <p class="text-sm">${new Date(t.deadline).toLocaleDateString()}</p>
     `;
-  });
-}
 
+    container.appendChild(div);
+  });
+
+  countEl.innerText = topics.length;
+}
 //
 // 🔹 ADD TOPIC
 //
 async function addTopic() {
-  const topic = {
-    name: name.value,
-    difficulty: parseFloat(difficulty.value),
-    estimated_hours: parseFloat(hours.value),
-    deadline: deadline.value
-  };
+  const nameInput = document.querySelector("#topicName");
+  const difficultyInput = document.querySelector("#difficulty");
+  const hoursInput = document.querySelector("#hours");
+  const deadlineInput = document.querySelector("#deadline");
 
-  if (!topic.name || !topic.difficulty || !topic.estimated_hours || !topic.deadline) {
-    alert("Fill all fields");
+  if (!nameInput || !difficultyInput || !hoursInput || !deadlineInput) {
+    console.error("❌ Missing input fields");
     return;
   }
 
-  await fetch(`${API}/topics`, {
+  const name = nameInput.value.trim();
+  const difficulty = Number(difficultyInput.value);
+  const estimated_hours = Number(hoursInput.value);
+  const deadline = deadlineInput.value;
+
+  if (!name || !estimated_hours || !ACTIVE_PLAN_ID) {
+    alert("Fill all fields and select a plan");
+    return;
+  }
+
+  await apiFetch(`${API}/topics`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(topic)
+    body: JSON.stringify({
+      name,
+      difficulty,
+      estimated_hours,
+      deadline,
+      planId: ACTIVE_PLAN_ID
+    })
   });
 
-  alert("Added");
-  loadTopics();
+  alert("✅ Topic added");
+
+  // clear inputs
+  nameInput.value = "";
+  difficultyInput.value = "";
+  hoursInput.value = "";
+  deadlineInput.value = "";
+
+  await loadTopics();
 }
 
 //
@@ -83,99 +285,92 @@ async function generateSchedule() {
     alert("Enter daily hours");
     return;
   }
+  if (!ACTIVE_PLAN_ID) {
+    alert("Select a plan first");
+    return;
+  }
 
-  await fetch(`${API}/schedule/generate`, {
+  await apiFetch(`${API}/schedule/plans/${ACTIVE_PLAN_ID}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dailyHours: dh })
   });
 
   alert("Generated");
-  loadSchedule();
+  await loadSchedule();
+  await loadToday();
 }
 
 //
 // 🔹 LOAD SCHEDULE
 //
 async function loadSchedule() {
-  const res = await fetch(`${API}/schedule`);
+  if (!ACTIVE_PLAN_ID) {
+    console.warn("Skipping schedule load — no plan");
+    scheduleTable.innerHTML = "";
+    return;
+  }
+
+  let res;
+
+  try {
+    res = await apiFetch(`${API}/schedule?planId=${ACTIVE_PLAN_ID}`);
+  } catch (err) {
+    console.error("Schedule API failed", err);
+    return;
+  }
+
+  if (res.status === 404) {
+    scheduleTable.innerHTML = `
+    <tr>
+      <td colspan="5" class="text-center text-gray-500 p-4">
+        No schedule yet. Click "Generate Schedule".
+      </td>
+    </tr>
+  `;
+    return;
+  }
+
+  if (!res.ok) {
+    console.error("Failed to load schedule", res.status);
+    return;
+  }
+
   const schedules = await res.json();
 
-  scheduleTable.innerHTML = "";
-  todayPlan.innerHTML = "";
-
-  const today = new Date().toLocaleDateString();
-  let total = 0;
-
-  const todaySchedule = schedules.find(day =>
-    new Date(day.date).toLocaleDateString() === today
-  );
-
-  if (todaySchedule) {
-    const groupedToday = {};
-
-    todaySchedule.ScheduleItems.forEach(item => {
-      if (item.topic_name.startsWith("Reinforce")) return;
-
-      groupedToday[item.topic_name] =
-        (groupedToday[item.topic_name] || 0) + item.allocated_hours;
-    });
-
-    Object.entries(groupedToday).forEach(([topic, hours]) => {
-      total += hours;
-
-      todayPlan.innerHTML += `
-        <div class="flex justify-between border-b pb-1">
-          <span>${topic}</span>
-          <span>${hours}h</span>
-        </div>
-      `;
-    });
+  if (!Array.isArray(schedules)) {
+    console.error("Invalid schedule response", schedules);
+    return;
   }
+
+  scheduleTable.innerHTML = "";
 
   schedules.forEach(day => {
     const date = new Date(day.date).toLocaleDateString();
-    const grouped = {};
 
     day.ScheduleItems.forEach(item => {
-      if (item.topic_name.startsWith("Reinforce")) return;
-
-      if (!grouped[item.topic_name]) {
-        grouped[item.topic_name] = {
-          hours: 0,
-          priority: item.priority_score,
-          reason: item.reason
-        };
-      }
-
-      grouped[item.topic_name].hours += item.allocated_hours;
-    });
-
-    Object.entries(grouped).forEach(([topic, data]) => {
-      const r = JSON.parse(data.reason || "{}");
+      const r = JSON.parse(item.reason || "{}");
 
       const reasonText = r.difficulty
         ? `Difficulty: ${r.difficulty}, Urgency: ${r.urgency}`
         : "System generated";
 
-      const priority = Number(data.priority).toFixed(2);
+      const priority = item.priority_score
+        ? Number(item.priority_score).toFixed(2)
+        : "-";
 
       scheduleTable.innerHTML += `
         <tr class="border-b hover:bg-gray-50">
           <td class="p-3">${date}</td>
-          <td>${topic}</td>
-          <td class="text-center">${data.hours}</td>
+          <td>${item.topic_name}</td>
+          <td class="text-center">${item.allocated_hours}</td>
           <td class="text-center">${priority}</td>
           <td>${reasonText}</td>
         </tr>
       `;
     });
   });
-
-  todayHours.innerText = total;
 }
-
-
 
 // =============================
 // 🔥 GLOBAL STATE
@@ -207,7 +402,7 @@ async function runDBAnalysis(mode) {
     // Reset plan (🔥 prevents glitch)
     document.getElementById("queryPlan").innerText = "";
 
-    const res = await fetch(`${API}/api/db-analysis?mode=${mode}`);
+    const res = await apiFetch(`${API}/api/db-analysis?mode=${mode}`);
 
     if (!res.ok) throw new Error("Network error");
 
@@ -349,3 +544,367 @@ function showSection(event, sectionId) {
   event.target.classList.add("text-blue-500");
 }
 
+async function handleAuth() {
+  clearAuthError();
+
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const name = document.getElementById("authName").value;
+  const roleEl = document.getElementById("role"); // 🔥 FIX
+  const role = roleEl ? roleEl.value : "student";
+
+  if (!email || !password) {
+    showAuthError("Fill all required fields");
+    return;
+  }
+
+  try {
+    if (isLoginMode) {
+      // 🔐 LOGIN (NO ROLE SENT)
+      const res = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showAuthError(data.message || "Invalid credentials");
+        return;
+      }
+
+      // ✅ STORE TOKEN + ROLE
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role", data.user.role);
+
+    } else {
+      // 🆕 REGISTER (ROLE INCLUDED)
+      if (!name) {
+        showAuthError("Enter name");
+        return;
+      }
+
+      const res = await fetch(`${API}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          role   // 🔥 FIXED
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showAuthError(data.message || "Registration failed");
+        return;
+      }
+
+      showAuthError("Registered successfully. Now login.");
+      toggleAuthMode();
+      return;
+    }
+
+    // ✅ SUCCESS → ENTER APP
+    document.getElementById("loginSection").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+
+    init();
+
+  } catch (err) {
+    console.error(err);
+    showAuthError("Something went wrong");
+  }
+}
+function toggleAuthMode() {
+  isLoginMode = !isLoginMode;
+
+  const title = document.getElementById("authTitle");
+  const btn = document.getElementById("authBtn");
+  const toggleText = document.getElementById("toggleText");
+  const nameInput = document.getElementById("authName");
+  const roleField = document.getElementById("role"); // 🔥 FIX
+
+  if (isLoginMode) {
+    title.innerText = "Login";
+    btn.innerText = "Login";
+    toggleText.innerText = "Don't have an account?";
+
+    nameInput.classList.add("hidden");
+    if (roleField) roleField.classList.add("hidden");
+
+  } else {
+    title.innerText = "Register";
+    btn.innerText = "Register";
+    toggleText.innerText = "Already have an account?";
+
+    nameInput.classList.remove("hidden");
+    if (roleField) roleField.classList.remove("hidden");
+  }
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  location.reload();
+}
+
+
+
+async function apiFetch(url, options = {}) {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Not logged in");
+    throw new Error("No token");
+  }
+
+  options.headers = {
+    ...(options.headers || {}),
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`
+  };
+
+  const res = await fetch(url, options);
+
+  // 🔥 HANDLE EXPIRED TOKEN
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    alert("Session expired. Login again.");
+    location.reload();
+    return;
+  }
+
+  return res;
+}
+
+
+function clearUIForNoPlan() {
+  document.getElementById("topicsContainer").innerHTML =
+    "<p class='text-gray-500'>No plan selected</p>";
+
+  document.getElementById("topicCount").innerText = 0;
+
+  document.getElementById("todayHours").innerText = 0;
+
+  scheduleTable.innerHTML = "";
+}
+
+async function markDone(
+  scheduleItemId,
+  feedback,
+  buttons,
+  taskDiv,
+  allocatedHours
+) {
+  if (!scheduleItemId) throw new Error("Missing scheduleItemId");
+
+  // prevent double click
+  if (taskDiv.dataset.logged) return;
+  taskDiv.dataset.logged = "true";
+
+  buttons.forEach(b => (b.disabled = true));
+
+  try {
+    const res = await apiFetch(`${API}/log`, {
+      method: "POST",
+      body: JSON.stringify({
+        scheduleItemId,
+        difficulty_feedback: feedback,
+        hours_studied: allocatedHours
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || "Logging failed");
+    }
+
+    // ✅ UPDATE HOURS FIRST (IMPORTANT ORDER)
+    const hoursEl = document.getElementById("scheduleHours");
+
+    const current = parseInt(hoursEl.textContent.trim()) || 0;
+    const updated = Math.max(0, current - Number(allocatedHours));
+
+    hoursEl.textContent = updated;
+
+    console.log("Hours:", current, "→", updated);
+
+    // ✅ VISUAL FEEDBACK
+    taskDiv.style.opacity = "0.5";
+
+    const badge = document.createElement("span");
+    badge.className = "completed-badge";
+    badge.innerText = `✔ ${feedback}`;
+    taskDiv.appendChild(badge);
+
+    // ✅ REMOVE TASK (KEY FOR DEMO CLARITY)
+    setTimeout(() => {
+      taskDiv.remove();
+    }, 400);
+
+  } catch (err) {
+    console.error("❌ markDone error:", err);
+
+    if (err.message.includes("Already")) {
+      console.log("Already logged — treating as success");
+
+      const hoursEl = document.getElementById("scheduleHours");
+
+      const current = parseInt(hoursEl.textContent.trim()) || 0;
+      const updated = Math.max(0, current - Number(allocatedHours));
+
+      hoursEl.textContent = updated;
+
+      taskDiv.style.opacity = "0.5";
+
+      const badge = document.createElement("span");
+      badge.className = "completed-badge";
+      badge.innerText = `✔ ${feedback}`;
+      taskDiv.appendChild(badge);
+
+      setTimeout(() => {
+        taskDiv.remove();
+      }, 400);
+
+      return;
+    }
+
+    buttons.forEach(b => (b.disabled = false));
+    delete taskDiv.dataset.logged;
+
+    alert(err.message);
+  }
+}
+async function regeneratePlan() {
+  await apiFetch(`${API}/schedule/plans/${ACTIVE_PLAN_ID}/generate`, {
+    method: "POST"
+  });
+
+  await loadToday();
+}
+
+window.onload = () => {
+  const token = localStorage.getItem("token");
+
+  if (token) {
+    document.getElementById("loginSection").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    init();
+  }
+};
+
+function showAuthError(msg) {
+  const el = document.getElementById("authError");
+  el.innerText = msg;
+  el.classList.remove("hidden");
+}
+
+function clearAuthError() {
+  const el = document.getElementById("authError");
+  el.innerText = "";
+  el.classList.add("hidden");
+}
+
+function openPlanModal() {
+  document.getElementById("planModal").classList.remove("hidden");
+}
+
+function closePlanModal() {
+  document.getElementById("planModal").classList.add("hidden");
+  document.getElementById("planNameInput").value = "";
+  document.getElementById("planError").classList.add("hidden");
+}
+
+async function submitPlan() {
+  const input = document.getElementById("planNameInput");
+  const error = document.getElementById("planError");
+
+  const name = input.value.trim();
+
+  // 🔴 VALIDATION
+  if (!name) {
+    error.innerText = "Enter plan name";
+    error.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    // 🔥 CREATE PLAN
+    const res = await apiFetch(`${API}/plans`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: name   // ✅ MUST MATCH BACKEND
+      })
+    });
+
+    if (!res.ok) {
+      error.innerText = "Failed to create plan";
+      error.classList.remove("hidden");
+      return;
+    }
+
+    const data = await res.json();
+    const newPlanId = data.planId;
+
+    // 🔥 CLOSE MODAL
+    closePlanModal();
+
+    // 🔥 RELOAD PLANS
+    await loadPlans();
+
+    // 🔥 SET ACTIVE PLAN (CRITICAL FIX)
+    ACTIVE_PLAN_ID = newPlanId;
+
+    // 🔥 UPDATE DROPDOWN UI
+    const select = document.getElementById("planSelect");
+    if (select) {
+      select.value = newPlanId;
+    }
+
+    // 🔥 REFRESH WHOLE UI
+    await init();
+
+  } catch (err) {
+    console.error(err);
+    error.innerText = "Something went wrong";
+    error.classList.remove("hidden");
+  }
+}
+function openPlanModal() {
+  const modal = document.getElementById("planModal");
+  modal.classList.remove("hidden");
+
+  setTimeout(() => {
+    document.getElementById("planNameInput").focus();
+  }, 100);
+}
+function handlePlanChange(select) {
+  ACTIVE_PLAN_ID = select.value;
+
+  console.log("✅ Active Plan Set:", ACTIVE_PLAN_ID);
+
+  if (!ACTIVE_PLAN_ID) {
+    console.warn("No plan selected");
+    return;
+  }
+
+  loadSchedule();
+  loadToday();
+}
+
+function setInitialPlan(plans) {
+  if (plans.length > 0) {
+    ACTIVE_PLAN_ID = plans[0].id;
+
+    document.getElementById("planSelect").value = ACTIVE_PLAN_ID;
+
+    console.log("✅ Default Plan Set:", ACTIVE_PLAN_ID);
+  }
+}

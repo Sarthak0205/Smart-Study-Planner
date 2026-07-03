@@ -29,9 +29,10 @@ function createSequelize() {
     };
 
     if (config.database.url) {
+        const hasSslmodeRequire = config.database.url.includes("sslmode=require") || config.database.url.includes("neon.tech");
         return new Sequelize(config.database.url, {
             ...commonOptions,
-            dialectOptions: config.isProduction
+            dialectOptions: (config.isProduction || hasSslmodeRequire)
                 ? {
                     ssl: {
                         require: true,

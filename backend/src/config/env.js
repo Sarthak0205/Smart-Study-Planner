@@ -2,10 +2,12 @@ const path = require("path");
 const dotenv = require("dotenv");
 const { z } = require("zod");
 
-dotenv.config({
-    path: path.resolve(process.cwd(), ".env"),
-    quiet: true
-});
+if (process.env.NODE_ENV !== "production") {
+    dotenv.config({
+        path: path.resolve(process.cwd(), ".env"),
+        quiet: true
+    });
+}
 
 const { BRANDING } = require("./branding");
 

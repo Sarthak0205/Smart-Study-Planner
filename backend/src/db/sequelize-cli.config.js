@@ -15,10 +15,11 @@ const baseConfig = {
 
 function environmentConfig() {
     if (config.database.url) {
+        const hasSslmodeRequire = config.database.url.includes("sslmode=require") || config.database.url.includes("neon.tech");
         return {
             ...baseConfig,
             url: config.database.url,
-            dialectOptions: config.isProduction
+            dialectOptions: (config.isProduction || hasSslmodeRequire)
                 ? {
                     ssl: {
                         require: true,

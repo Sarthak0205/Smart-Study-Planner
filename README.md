@@ -1,3 +1,8 @@
+![Version](https://img.shields.io/badge/version-v1.0-blue)
+![React](https://img.shields.io/badge/React-19-blue)
+![Node](https://img.shields.io/badge/Node-20-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-blue)
+![Status](https://img.shields.io/badge/status-deployed-success)
 # StudyFlow: Adaptive Study Planning & Scheduling Platform
 
 StudyFlow is a production-quality, engineering-focused study planning and scheduling platform designed as a modular monolith. It enables educators to author stable, reusable public study plans, and students to follow and clone these templates into highly personalized, adaptive scheduling paths. 

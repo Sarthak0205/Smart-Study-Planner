@@ -13,7 +13,7 @@ The core of StudyFlow is a **deterministic, explainable scheduling engine** that
 # Live Demo
 
 Frontend:
-https://YOUR-VERCEL-URL.vercel.app
+https://studyflow-puce-five.vercel.app
 
 Backend API:
 https://studyflow-api-hddv.onrender.com

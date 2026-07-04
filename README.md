@@ -5,6 +5,34 @@ StudyFlow is a production-quality, engineering-focused study planning and schedu
 The core of StudyFlow is a **deterministic, explainable scheduling engine** that allocates study hours based on deadlines, topic difficulty, urgency scoring, and historical performance. Rather than relying on fragile application-level checks, StudyFlow uses robust **PostgreSQL transactional rules and schema constraints** to guarantee ownership, concurrency control, and scheduling invariants.
 
 ---
+# Live Demo
+
+Frontend:
+https://YOUR-VERCEL-URL.vercel.app
+
+Backend API:
+https://studyflow-api-hddv.onrender.com
+
+## Tech Stack
+
+Frontend:
+- React
+- Vite
+- React Query
+
+Backend:
+- Express
+- Sequelize
+- JWT Authentication
+- Zod Validation
+
+Database:
+- PostgreSQL (Neon)
+
+Deployment:
+- Vercel
+- Render
+- Neon
 
 ## 🌟 Key Features
 
